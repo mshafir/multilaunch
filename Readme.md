@@ -10,7 +10,7 @@ npx multilaunch config.json
 
 Example config:
 
-```json
+```json5
 [
     {
         // name for the command in the sidebar
