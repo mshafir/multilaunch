@@ -13,7 +13,7 @@ export interface LauncherConfig {
     name: string;
     command: string;
     cwd: string;
-    startedWhen: string;
+    startedWhen?: string;
 }
 
 interface LaunchState extends LauncherConfig {
@@ -21,6 +21,9 @@ interface LaunchState extends LauncherConfig {
     log?: string[];
     status?: string;
 }
+
+
+const SIDEBAR_WIDTH = 30;
 
 export class MainView implements TerminalView<MainViewState> {
     private launches: LaunchState[];
@@ -73,8 +76,10 @@ export class MainView implements TerminalView<MainViewState> {
         state.status = "Starting";
         const appendLog = (log: string[]) => {
             state.log = [...(state.log ?? []), ...log];
-            if (log.some(l => l.includes(state.startedWhen))) {
-                state.status = "Running";
+            if (!state.status || state.status === "Starting") {
+                if (!state.startedWhen || log.some(l => l.includes(state.startedWhen ?? ''))) {
+                    state.status = "Running";
+                }
             }
             operations.updateState((oldState: MainViewState) => {
                 if (this.launches[oldState.selectedCommandId] === state) {
@@ -104,16 +109,15 @@ export class MainView implements TerminalView<MainViewState> {
         subproc.stdout?.on('data', appendData)
         subproc.stderr?.on('data', appendData)
         subproc.on('close', (code) => {
-            appendLog([`${state.command} exited with code ${code}`]);
             state.status = code === 0 ? "Finished" : "Failed";
+            appendLog([`${state.command} exited with code ${code}`]);
+            state.process = undefined;
         });
         state.process = subproc;
     }
 
     render(state: MainViewState): void {
         terminal.clear();
-
-        const SIDEBAR_WIDTH = 20;
 
         const curCommand = this.launches[state.selectedCommandId];
 
