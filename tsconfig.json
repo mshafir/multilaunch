@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+        "moduleResolution": "node",
+        "target": "es6",
+        "module": "commonjs",
+        "lib": ["esnext","dom"],
+        "strict": true,
+        "sourceMap": true,
+        "declaration": true,
+        "declarationMap": true,
+        "allowSyntheticDefaultImports": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
+        "strictPropertyInitialization": true,
+        "esModuleInterop": true,
+        "rootDir": "src",
+        "declarationDir": "build/types",
+        "outDir": "build/lib",
+    },
+    "include": [
+        "src"
+    ]
+}

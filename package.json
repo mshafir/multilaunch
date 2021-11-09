@@ -1,0 +1,35 @@
+{
+  "name": "multilaunch",
+  "version": "1.0.0",
+  "description": "A command line client for launching and tracking multiple processes",
+  "source": "src/index.ts",
+  "bin": {
+    "multilaunch": "main.js"
+  },
+  "main": "build/lib/index.js",
+  "typings": "build/types/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "run": "node -r dotenv/config ./build/lib/index.js",
+    "start": "ts-node -r dotenv/config src/index.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com:mshafir/multilaunch.git"
+  },
+  "author": "Michael Shafir",
+  "license": "MIT",
+  "homepage": "https://github.com/mshafir/multilaunch#readme",
+  "dependencies": {
+    "lodash": "^4.17.20",
+    "terminal-kit": "^2.1.8",
+    "terminate": "^2.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^14.10.0",
+    "@types/terminal-kit": "^1.28.4",
+    "dotenv": "^8.2.0",
+    "ts-node": "^9.0.0",
+    "typescript": "^4.0.2"
+  }
+}

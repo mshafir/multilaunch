@@ -1,0 +1,14 @@
+[
+    {
+        "name": "Start Backend",
+        "command": "rush start-backend",
+        "cwd": "./backend",
+        "startedWhen": "Server ready at"
+    },
+    {
+        "name": "Start Frontend",
+        "command": "rush start-frontend",
+        "cwd": "./frontend",
+        "startedWhen": "Compiled successfully!"
+    }
+]
