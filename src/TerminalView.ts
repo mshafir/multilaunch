@@ -1,19 +1,32 @@
 
-export type StateUpdateFunction<S> = (state: S, operations: TerminalStateOperations<S>) => Promise<S>
+export type ActionFunction = (event: any, operations: GlobalTerminalOperations) => Promise<boolean | void>
 
-export type TerminalKeyActions<S> = { [k: string]: StateUpdateFunction<S>; };
+export type TerminalActions<K extends string=string> = { [k in K]?: ActionFunction; };
 
-export type StateUpdate<S> = (oldState: S) => S;
+export type MouseActions = 
+    'MOUSE_LEFT_BUTTON_PRESSED' | 
+    'MOUSE_LEFT_BUTTON_RELEASED' | 
+    'MOUSE_RIGHT_BUTTON_PRESSED' | 
+    'MOUSE_RIGHT_BUTTON_RELEASED' |
+    'MOUSE_MIDDLE_BUTTON_PRESSED' |
+    'MOUSE_MIDDLE_BUTTON_RELEASED' |
+    'MOUSE_WHEEL_UP' |
+    'MOUSE_WHEEL_DOWN' | 
+    'MOUSE_OTHER_BUTTON_PRESSED' |
+    'MOUSE_OTHER_BUTTON_RELEASED' |
+    'MOUSE_BUTTON_RELEASED' |
+    'MOUSE_MOTION' |
+    'MOUSE_DRAG';
 
-export interface TerminalView<S> {
-    initialState: S;
-    keyEvents: TerminalKeyActions<S>;
-    startup?(operations: TerminalStateOperations<S>): Promise<void>;
-    render(state: S): void;
+export interface TerminalView {
+    keyEvents: TerminalActions;
+    mouseEvents: TerminalActions<MouseActions>;
+    startup?(operations: GlobalTerminalOperations): Promise<void>;
+    render(): void;
     cleanup?(): Promise<void>;
 }
 
-export interface TerminalStateOperations<S=any> {
-    updateState(state: S | StateUpdate<S>): S;
-    loadView(view: TerminalView<any>): Promise<any>;
+export interface GlobalTerminalOperations {
+    loadView(view: TerminalView): Promise<void>;
+    terminate(): Promise<any>;
 }

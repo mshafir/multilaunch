@@ -1,55 +1,46 @@
 import { terminal } from "terminal-kit";
-import { StateUpdate, TerminalStateOperations, TerminalView } from './TerminalView';
+import { GlobalTerminalOperations, MouseActions, TerminalView } from './TerminalView';
 
-export class TerminalStateManager implements TerminalStateOperations {
-    private state: any;
-    private view?: TerminalView<any>;
+export class TerminalStateManager implements GlobalTerminalOperations {
+    private view?: TerminalView;
 
-    async loadView(view: TerminalView<any>) {
+    async loadView(view: TerminalView) {
         this.view?.cleanup && await this.view.cleanup();
         this.view = view;
-        this.state = this.view.initialState;
         this.view?.startup && await this.view.startup(this);
         terminal.clear();
         this.rerender();
-        return this.state;
-    }
-
-    updateState<S=any>(state: S | StateUpdate<S>): S {
-        let newState;
-        if (typeof(state) === 'function') {
-            newState = (state as StateUpdate<S>)(this.state);
-        } else {
-            newState = state;
-        }
-        if (newState !== this.state) {
-            this.state = newState;
-            this.rerender();
-        }
-        return newState;
     }
 
     rerender() {
-        this.view && this.view.render(this.state);    
+        this.view && this.view.render();    
     }
 
     start() {
-        terminal.grabInput({});
+        terminal.grabInput({
+            mouse: 'button'
+        });
+        terminal.fullscreen(true);
 
         if (!this.view) {
             terminal("There is no current view set!");
         }
 
-        terminal.on('key', async (name: string) => {
-            if (name === 'ESCAPE') {
-                await this.terminate();
-            } else if (this.view && name in this.view.keyEvents) {
-                this.state = await this.view.keyEvents[name](this.state, this);
-                this.rerender();
-            } else if (this.view) {
-                console.log('unhandled keyinput', name);
+        terminal.on('key', async (name: string, data: any) => {
+            if (this.view && name in this.view.keyEvents) {
+                if (await this.view.keyEvents[name]!(data, this)) {
+                    this.rerender();
+                }
             }
         });
+
+        terminal.on('mouse', async (name: string, data: any) => {
+            if (this.view && name in this.view.mouseEvents) {
+                if (await this.view.mouseEvents[name as MouseActions]!(data, this)) {
+                    this.rerender();
+                }
+            }
+        })
 
         this.rerender();
     }
@@ -58,7 +49,7 @@ export class TerminalStateManager implements TerminalStateOperations {
         terminal.grabInput(false);
         setTimeout(async () => { 
             this.view?.cleanup && await this.view.cleanup();
-            process.exit();
+            terminal.processExit(0);
          }, 100);
     }
 }
