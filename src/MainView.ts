@@ -1,14 +1,17 @@
 import { ChildProcess, spawn } from "child_process";
-import { terminal, truncateString } from "terminal-kit";
+import { writeFile } from "fs";
+import { terminal, truncateString, stripEscapeSequences } from "terminal-kit";
 import { MouseActions, TerminalActions, TerminalView } from "./TerminalView";
 import { padString } from "./utils/pad-string";
 import { terminateProcess } from "./utils/terminate-process";
+import {resolve} from 'path';
 
 export interface LauncherConfig {
     name: string;
     command: string;
     cwd: string;
     startedWhen?: string;
+    section: string;
 }
 
 interface LaunchState extends LauncherConfig {
@@ -21,12 +24,21 @@ interface LaunchState extends LauncherConfig {
 const HEADER_SIZE = 2;
 const SIDEBAR_WIDTH = 30;
 const SCROLL_AMOUNT = 1;
+const MAX_LOG = 50 * 1000;
 
 export class MainView implements TerminalView {
     private launches: LaunchState[];
     private selectedCommandId = 0;
     private currentLog: string[] = [];
     private logScrollOffset = 0;
+
+    private dumpLog() {
+        const curProcess = this.launches[this.selectedCommandId];
+        const logPath = `./${curProcess.name}.log`;
+        writeFile(logPath, this.currentLog.map(s => stripEscapeSequences(s)).join('\n'), () => {
+            this.appendLog(curProcess, [`Log saved to ${resolve(logPath)}`]);
+        });
+    }
 
     keyEvents: TerminalActions = {
         UP: async () => {
@@ -59,9 +71,9 @@ export class MainView implements TerminalView {
             this.logScrollOffset = 0;
             return true;
         },
-        ESCAPE: async (_data, operations) => {
-            await operations.terminate();
-        }
+        ESCAPE: (_data, operations) =>operations.terminate(),
+        d: async () => this.dumpLog(),
+        D: async () => this.dumpLog()
     };
 
     mouseEvents: TerminalActions<MouseActions> = {
@@ -98,6 +110,9 @@ export class MainView implements TerminalView {
     appendLog(state: LaunchState, log: string[]) {
         if (log.length === 0) return;
         state.log = [...(state.log ?? []), ...log];
+        if (state.log.length > MAX_LOG) {
+            state.log = state.log.slice(state.log.length - MAX_LOG);
+        }
         if (!state.status || state.status === "Starting") {
             if (!state.startedWhen || log.some(l => l.includes(state.startedWhen ?? ''))) {
                 state.status = "Running";
@@ -116,7 +131,7 @@ export class MainView implements TerminalView {
         const appendLog = (log: string[]) => {
             this.appendLog(state, log);
         }
-        appendLog([`running ${state.command} from ${state.cwd}`]);
+        appendLog([`running '${state.command}' from ${state.cwd}`]);
         const cmdparts = state.command.split(' ');
         const bin = cmdparts[0];
         const args = cmdparts.slice(1);
@@ -163,12 +178,14 @@ export class MainView implements TerminalView {
     }
 
     renderCommandOnLeft(launch: LaunchState) {
+        let suffix = ' ';
         if (this.launches[this.selectedCommandId] === launch) {
             terminal.white();
+            suffix = '<'
         } else {
             terminal.grey();
         }
-        terminal(padString(launch.name + " ", SIDEBAR_WIDTH));
+        terminal(padString(' ' + launch.name, SIDEBAR_WIDTH-1) + suffix);
         terminal.defaultColor();
         terminal.nextLine(1);
         terminal.italic()
@@ -181,8 +198,16 @@ export class MainView implements TerminalView {
 
     renderSidebar() {
         terminal.moveTo(1, HEADER_SIZE + 1);
+        let section = '';
         for (let i = 0; i < this.launches.length; i++) {
             const launch = this.launches[i];
+            if (launch.section !== section) {
+                terminal.brightBlue(padString(' '+launch.section, SIDEBAR_WIDTH));
+                terminal.nextLine(1);
+                terminal('─'.repeat(SIDEBAR_WIDTH));
+                terminal.nextLine(1);
+                section = launch.section;
+            }
             this.renderCommandOnLeft(launch);
         }
         
@@ -192,7 +217,11 @@ export class MainView implements TerminalView {
             terminal('│');
         }
 
-        terminal.moveTo(0, terminal.height);
+        terminal.moveTo(0, terminal.height-2);
+        terminal(' CTRL+C to kill selected cmd');
+        terminal.nextLine(1);
+        terminal(' D to dump log');
+        terminal.nextLine(1);
         terminal(' ESC to quit');
     }
 
@@ -203,7 +232,7 @@ export class MainView implements TerminalView {
         const curCommand = this.launches[this.selectedCommandId];
         let linePos = startRow;
         let log = this.currentLog.length === 0 ?
-            [`Command '${curCommand.command}' has not yet been run, to start press ENTER`] : this.currentLog;
+            [`> ${curCommand.command}`] : this.currentLog;
         // truncate the log to the available height
         const numLines = terminal.height - startRow;
         const offset = Math.max(numLines + this.logScrollOffset, numLines);
@@ -215,12 +244,17 @@ export class MainView implements TerminalView {
             terminal(truncateString(line, terminal.width - startCol));
             linePos += 1;
         }
+        if (this.currentLog.length === 0) {
+            terminal.moveTo(startCol, linePos);
+            terminal.grey("Press ENTER to start");
+        }
     }
 
     renderHeader() {
         terminal.moveTo(1, 1);
         const curCommand = this.launches[this.selectedCommandId];
-        terminal(`^b${padString("Commands", SIDEBAR_WIDTH)}^:│ ^b${curCommand.name}^:\n`);
+        const commandHeader = curCommand.name;
+        terminal(`^b${padString(" Commands", SIDEBAR_WIDTH)}^:│ ^b${commandHeader}^:\n`);
         terminal('─'.repeat(SIDEBAR_WIDTH) + '┼' + '─'.repeat(terminal.width - SIDEBAR_WIDTH - 1) + '\n');
     }
 
