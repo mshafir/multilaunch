@@ -1,6 +1,6 @@
 {
   "name": "multilaunch",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A command line client for launching and tracking multiple processes",
   "source": "src/index.ts",
   "bin": {
