@@ -120,8 +120,11 @@ export class MainView implements TerminalView {
         const cmdparts = state.command.split(' ');
         const bin = cmdparts[0];
         const args = cmdparts.slice(1);
+        process.env.FORCE_COLOR = 'true';
         const subproc = spawn(bin, args, {
-            cwd: state.cwd
+            cwd: state.cwd,
+            env: process.env,
+            shell: true
         });
         const appendData = (data: any) => {
             const dataString = data.toString();
