@@ -32,7 +32,35 @@ export class MainView implements TerminalView {
     private currentLog: string[] = [];
     private logScrollOffset = 0;
 
-    private dumpLog() {
+    private get currentCommand() {
+        return this.launches[this.selectedCommandId];
+    }
+
+    keyEvents: TerminalActions = {
+        UP: async () => this.selectCommand(-1),
+        DOWN: async () => this.selectCommand(1),
+        ENTER: async () => this.launch(this.currentCommand),
+        CTRL_C: async () => this.stopCommand(),
+        ESCAPE: (_data, operations) =>operations.terminate(),
+        " ": async () => this.scrollLog('reset'),
+        d: async () => this.dumpLog(),
+        D: async () => this.dumpLog(),
+        "[": async () => this.scrollLog('up'),
+        "{": async () => this.scrollLog('up', 20),
+        "]": async () => this.scrollLog('down'),
+        "}": async () => this.scrollLog('down', 20),
+    };
+
+    mouseEvents: TerminalActions<MouseActions> = {
+        MOUSE_WHEEL_UP: async () => this.scrollLog('up'),
+        MOUSE_WHEEL_DOWN: async () => this.scrollLog('down')
+    }
+
+    constructor(config: LauncherConfig[]) {
+        this.launches = config;
+    }
+
+    dumpLog() {
         const curProcess = this.launches[this.selectedCommandId];
         const logPath = `./${curProcess.name}.log`;
         writeFile(logPath, this.currentLog.map(s => stripEscapeSequences(s)).join('\n'), () => {
@@ -40,71 +68,43 @@ export class MainView implements TerminalView {
         });
     }
 
-    keyEvents: TerminalActions = {
-        UP: async () => {
-            let newId = this.selectedCommandId === 0 ? this.launches.length - 1 : this.selectedCommandId - 1;
-            this.selectedCommandId = newId;
-            this.currentLog = this.launches[newId].log ?? [];
-            this.logScrollOffset = 0;
-            return true;
-        },
-        DOWN: async () => {
-            let newId = this.selectedCommandId === this.launches.length - 1 ? 0 : this.selectedCommandId + 1;
-            this.selectedCommandId = newId;
-            this.currentLog = this.launches[newId].log ?? [];
-            this.logScrollOffset = 0;
-            return true;
-        },
-        ENTER: async () => {
-            const curProcess = this.launches[this.selectedCommandId];
-            this.launch(curProcess);
-            this.logScrollOffset = 0;
-            return true;
-        },
-        CTRL_C: async () => {
-            const curProcess = this.launches[this.selectedCommandId];
-            if (!curProcess.process) return;
-            await terminateProcess(curProcess.process.pid);
-            curProcess.status = "Stopped";
-            curProcess.process = undefined;
-            this.currentLog = [...this.currentLog, "", "Process was stopped, to restart, press ENTER"];
-            this.logScrollOffset = 0;
-            return true;
-        },
-        ESCAPE: (_data, operations) =>operations.terminate(),
-        d: async () => this.dumpLog(),
-        D: async () => this.dumpLog()
-    };
-
-    mouseEvents: TerminalActions<MouseActions> = {
-        MOUSE_WHEEL_UP: async () => {
-            let newScrollOffset = this.logScrollOffset;
-            if (this.logScrollOffset + SCROLL_AMOUNT >= this.currentLog.length) {
-                newScrollOffset = this.currentLog.length;
-            } else {
-                newScrollOffset += SCROLL_AMOUNT;
-            }
-            if (newScrollOffset !== this.logScrollOffset) {
-                this.logScrollOffset = newScrollOffset;
-                this.renderCurrentLog();
-            }
-        },
-        MOUSE_WHEEL_DOWN: async () => {
-            let newScrollOffset = this.logScrollOffset;
-            if (this.logScrollOffset - SCROLL_AMOUNT < 0) {
-                newScrollOffset = 0;
-            } else {
-                newScrollOffset -= SCROLL_AMOUNT;
-            }
-            if (newScrollOffset !== this.logScrollOffset) {
-                this.logScrollOffset = newScrollOffset;
-                this.renderCurrentLog();
-            }
-        }
+    selectCommand(direction: number) {
+        let newId = this.selectedCommandId + direction;
+        if (newId < 0) newId = this.launches.length - 1;
+        if (newId > this.launches.length - 1) newId = 0;
+        this.selectedCommandId = newId;
+        this.currentLog = this.launches[newId].log ?? [];
+        this.logScrollOffset = 0;
+        return true;
     }
 
-    constructor(config: LauncherConfig[]) {
-        this.launches = config;
+    async stopCommand() {
+        const curProcess = this.currentCommand;
+        if (!curProcess.process) return;
+        await terminateProcess(curProcess.process.pid);
+        curProcess.status = "Stopped";
+        curProcess.process = undefined;
+        this.currentLog = [...this.currentLog, "", "Process was stopped, to restart, press ENTER"];
+        this.logScrollOffset = 0;
+        return true;
+    }
+
+    scrollLog(change: 'up' | 'down' | 'reset', multiplier = 1) {
+        let newScrollOffset = this.logScrollOffset;
+
+        if (change === 'down') newScrollOffset -= SCROLL_AMOUNT * multiplier;
+        else if (change === 'up') newScrollOffset += SCROLL_AMOUNT * multiplier;
+        else if (change === 'reset') newScrollOffset = 0;
+
+        if (newScrollOffset >= this.currentLog.length) {
+            newScrollOffset = this.currentLog.length;
+        } else if (newScrollOffset < 0) {
+            newScrollOffset = 0;
+        }
+        if (newScrollOffset !== this.logScrollOffset) {
+            this.logScrollOffset = newScrollOffset;
+            this.renderCurrentLog();
+        }
     }
 
     appendLog(state: LaunchState, log: string[]) {
@@ -127,6 +127,7 @@ export class MainView implements TerminalView {
     }
 
     launch(state: LaunchState) {
+        this.logScrollOffset = 0;
         state.status = "Starting";
         const appendLog = (log: string[]) => {
             this.appendLog(state, log);
@@ -158,6 +159,7 @@ export class MainView implements TerminalView {
             state.process = undefined;
         });
         state.process = subproc;
+        return true;
     }
 
     renderStatus(status?: string) {
@@ -180,13 +182,15 @@ export class MainView implements TerminalView {
     renderCommandOnLeft(launch: LaunchState) {
         let suffix = ' ';
         if (this.launches[this.selectedCommandId] === launch) {
-            terminal.white();
+            terminal.yellow();
+            terminal.bold();
             suffix = '<'
         } else {
             terminal.grey();
         }
         terminal(padString(' ' + launch.name, SIDEBAR_WIDTH-1) + suffix);
         terminal.defaultColor();
+        terminal.styleReset();
         terminal.nextLine(1);
         terminal.italic()
         this.renderStatus(launch.status);
@@ -202,7 +206,7 @@ export class MainView implements TerminalView {
         for (let i = 0; i < this.launches.length; i++) {
             const launch = this.launches[i];
             if (launch.section !== section) {
-                terminal.brightBlue(padString(' '+launch.section, SIDEBAR_WIDTH));
+                terminal(padString(' '+launch.section, SIDEBAR_WIDTH));
                 terminal.nextLine(1);
                 terminal('─'.repeat(SIDEBAR_WIDTH));
                 terminal.nextLine(1);
@@ -254,7 +258,9 @@ export class MainView implements TerminalView {
         terminal.moveTo(1, 1);
         const curCommand = this.launches[this.selectedCommandId];
         const commandHeader = curCommand.name;
-        terminal(`^b${padString(" Commands", SIDEBAR_WIDTH)}^:│ ^b${commandHeader}^:\n`);
+        terminal.grey(`${padString(" Commands", SIDEBAR_WIDTH)}`)
+        terminal('│')
+        terminal.grey(` ${commandHeader}\n`);
         terminal('─'.repeat(SIDEBAR_WIDTH) + '┼' + '─'.repeat(terminal.width - SIDEBAR_WIDTH - 1) + '\n');
     }
 

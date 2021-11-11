@@ -2,6 +2,8 @@
 
 This is a utility for launching multiple processes and toggling between them to view their logs.
 
+![Screencast](screencast.gif)
+
 ### Usage:
 
 ```
@@ -42,6 +44,8 @@ When started, usage is fairly self-explanatory:
 - Ctrl+C to stop a process
 - D to dump the current log to disk
 - Esc to quit multilaunch (and stop underlying processes)
+- `[`/`]` to scroll/up and down in the log (shift for faster scrolling)
+- Space to go back to the bottom of the log
 
 Mouse scroll moves the log up and down, but you mean need to tweak terminal settings for this.
 Cmder - under Keys & Macro > Mouse > Send mouse events to console
